@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The app's light blue from the first frame (no white flash while it starts), with dark
+         status and navigation bar icons on it. -->
+    <style name="DeadlinesTheme" parent="android:Theme.DeviceDefault.Light.NoActionBar">
+        <item name="android:windowBackground">@color/deadlines_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+    <color name="deadlines_background">#e3eefb</color>
+    <color name="ic_launcher_background">#8fd6a5</color>
+</resources>

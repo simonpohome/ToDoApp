@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+build/
+# The .exe and .apk go on the GitHub Releases page, not in the repository.
+dist/
+# Phone app: build output and the PC preview's own data.
+mobile/build-android/
+mobile/.preview-data/
