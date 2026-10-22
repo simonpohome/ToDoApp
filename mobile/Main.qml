@@ -158,6 +158,27 @@ ApplicationWindow {
         saveTimer.stop()
         store.setValue("data", serialize())
         store.sync()
+        updateWidget()
+    }
+
+    // ---------- Home-screen widget (Android) ----------
+    // main.cpp provides "widgetBridge" on the phone; the PC preview has none.
+    readonly property bool hasWidget: typeof widgetBridge !== "undefined" && Qt.platform.os === "android"
+    function updateWidget() {
+        if (!hasWidget) return
+        // The list as the Deadlines tab shows it. Dates stay dates: the widget works out
+        // "today" / "in 3 days" itself, so they stay right while the app is closed.
+        const out = []
+        for (let i = 0; i < tasks.count; i++) {
+            const t = tasks.get(i)
+            out.push({ subject: t.subject, assignment: t.assignment, due: t.due, time: t.time,
+                       done: t.done, color: String(subjectColor(t.subject)) })
+        }
+        widgetBridge.update(JSON.stringify({ tasks: out }))
+    }
+    function addWidget() {
+        if (!widgetBridge.addToHomeScreen())
+            snackbar.show("Long-press your home screen, tap Widgets, and pick Deadlines", false)
     }
     Timer { id: saveTimer; interval: 300; onTriggered: saveNow() }
 
@@ -172,6 +193,7 @@ ApplicationWindow {
         for (let i = 0; i < tasks.count; i++) ensureColor(tasks.get(i).subject)
         loaded = true
         rev++
+        updateWidget()   // a widget placed before the app ever ran gets the list straight away
         if (canvas.feed_url) startupSync.start()
     }
     // A phone app can be closed at any time once it's in the background, so save on the way out.
@@ -221,7 +243,7 @@ ApplicationWindow {
     }
     function deleteTask(i) {
         lastDeleted = { index: i, task: toJson(tasks.get(i)) }
-        snackbar.show("Deleted “" + tasks.get(i).assignment + "”")
+        snackbar.show("Deleted “" + tasks.get(i).assignment + "”", true)
         const slot = repeater.itemAt(i)
         if (slot) slot.children[0].leave()   // animates out, then removes it from the model
         else removeTask(i)
@@ -902,12 +924,29 @@ ApplicationWindow {
                 font.pixelSize: 13; color: muted; elide: Text.ElideRight
             }
         }
+        // Puts the Deadlines list on the home screen as a scrollable widget.
+        Pill {
+            // Belongs to Deadlines: fades as you swipe away (keeping its space, so nothing jumps).
+            visible: hasWidget
+            opacity: Math.max(0, 1 - Math.abs(pages.position) * 2)
+            enabled: opacity > 0.5
+            text: "Add widget"; bold: false
+            fill: cardColor; pressedFill: field
+            onClicked: addWidget()
+        }
     }
 
-    StackLayout {
+    // The three tabs side by side: swipe between them, or tap the tab bar (which slides there).
+    readonly property var tabKeys: ["mine", "calendar", "courses"]
+    onCurrentTabChanged: pages.setCurrentIndex(tabKeys.indexOf(currentTab))
+    SwipeView {
         id: pages
         anchors { left: parent.left; right: parent.right; top: header.bottom; bottom: parent.bottom; topMargin: 12 }
-        currentIndex: ["mine", "calendar", "courses"].indexOf(currentTab)
+        clip: true
+        onCurrentIndexChanged: currentTab = tabKeys[currentIndex]
+        // Where the pages are, following the finger: 0 = Deadlines, 1 = Calendar, 2 = Courses
+        // (in between while swiping). The tab bar's pill and the + button follow it.
+        readonly property real position: width > 0 ? contentItem.contentX / width : currentIndex
         // Room at the bottom of each page for the tab bar (and the + button) floating over it.
         readonly property real bottomRoom: tabBar.height + bottomInset + 100
 
@@ -1276,20 +1315,6 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             Layout.preferredHeight: bigGrid.weeks * bigGrid.rowHeight
                             clip: true
-                            // Swipe sideways to change month.
-                            DragHandler {
-                                id: monthSwipe
-                                target: null
-                                yAxis.enabled: false
-                                property real lastX: 0
-                                onActiveTranslationChanged: lastX = activeTranslation.x
-                                onActiveChanged: {
-                                    if (active) return
-                                    if (lastX < -50) shiftCalMonth(1)
-                                    else if (lastX > 50) shiftCalMonth(-1)
-                                    lastX = 0
-                                }
-                            }
                         MonthGrid {
                             id: bigGrid
                             readonly property int weeks: {
@@ -1318,7 +1343,7 @@ ApplicationWindow {
                                 Rectangle {
                                     // Every day has a soft box of its own; darker while pressed.
                                     anchors.fill: parent; anchors.margins: 2; radius: 14
-                                    color: cellTap.pressed ? line : field
+                                    color: monthSwipe.pressedIso === bigCell.iso ? line : field
                                     border.width: bigCell.isSelected ? 2 : 0; border.color: accent
                                 }
                                 Rectangle {
@@ -1354,9 +1379,46 @@ ApplicationWindow {
                                         text: "+"; font.pixelSize: 11; font.bold: true; color: muted
                                     }
                                 }
-                                TapHandler { id: cellTap; onTapped: calDay = bigCell.iso }
                             }
                         }
+                            // Over the month: tap a day to choose it, swipe sideways for another month.
+                            // A sideways drag here is kept from the page swipe (preventStealing) as soon
+                            // as it's clearly sideways; an up/down drag still scrolls the page.
+                            MouseArea {
+                                id: monthSwipe
+                                anchors.fill: parent
+                                property real startX: 0
+                                property real startY: 0
+                                property bool sideways: false
+                                property string pressedIso: ""   // the day under the finger (drawn darker)
+                                function dayAt(x, y) {
+                                    const p = mapToItem(bigGrid.contentItem, x, y)
+                                    const cell = bigGrid.contentItem.childAt(p.x, p.y)
+                                    return cell && cell.enabled ? cell.iso : ""
+                                }
+                                onPressed: (mouse) => {
+                                    startX = mouse.x; startY = mouse.y
+                                    sideways = false; preventStealing = false
+                                    pressedIso = dayAt(mouse.x, mouse.y)
+                                }
+                                onPositionChanged: (mouse) => {
+                                    const dx = mouse.x - startX, dy = mouse.y - startY
+                                    if (!sideways && Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(dy)) {
+                                        sideways = true
+                                        preventStealing = true
+                                        pressedIso = ""
+                                    }
+                                }
+                                onReleased: (mouse) => {
+                                    const dx = mouse.x - startX
+                                    if (sideways && dx < -50) shiftCalMonth(1)
+                                    else if (sideways && dx > 50) shiftCalMonth(-1)
+                                    else if (!sideways && pressedIso) calDay = pressedIso
+                                    pressedIso = ""
+                                    preventStealing = false
+                                }
+                                onCanceled: { pressedIso = ""; preventStealing = false }   // the page took it (scrolling)
+                            }
                         }
                         // Which colour is which subject this month.
                         Flow {
@@ -1669,7 +1731,11 @@ ApplicationWindow {
         id: fab
         anchors { right: parent.right; rightMargin: 20; bottom: tabBar.top; bottomMargin: 16 }
         width: 60; height: 60
-        visible: currentTab === "mine"
+        // Belongs to Deadlines: fades and shrinks away as you swipe to another tab.
+        opacity: Math.max(0, 1 - Math.abs(pages.position) * 2)
+        scale: 0.6 + 0.4 * opacity
+        visible: opacity > 0
+        enabled: opacity > 0.5
         fill: accent; pressedFill: accentHover; mark: "white"
         barLength: 22
         onClicked: formOpen = true
@@ -1678,13 +1744,14 @@ ApplicationWindow {
     }
 
     Rectangle {
-        // "Deleted …  Undo", for a few seconds after deleting a card.
+        // A short message at the bottom for a few seconds, e.g. "Deleted …  Undo".
         id: snackbar
-        function show(text) { snackText.text = text; shown = true; snackTimer.restart() }
+        function show(text, canUndo) { snackText.text = text; undoable = canUndo; shown = true; snackTimer.restart() }
         property bool shown: false
+        property bool undoable: false
         anchors { left: parent.left; right: parent.right; leftMargin: 16; rightMargin: currentTab === "mine" ? 92 : 16
                   bottom: tabBar.top; bottomMargin: 18 }
-        height: 52; radius: 18
+        height: Math.max(52, snackText.implicitHeight + 26); radius: 18
         color: textColor
         opacity: shown ? 1 : 0
         visible: opacity > 0
@@ -1692,8 +1759,9 @@ ApplicationWindow {
         Timer { id: snackTimer; interval: 4500; onTriggered: { snackbar.shown = false; lastDeleted = null } }
         RowLayout {
             anchors.fill: parent; anchors.leftMargin: 18; anchors.rightMargin: 6
-            Text { id: snackText; Layout.fillWidth: true; elide: Text.ElideRight; color: "white"; font.pixelSize: 14 }
+            Text { id: snackText; Layout.fillWidth: true; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight; color: "white"; font.pixelSize: 14 }
             Pill {
+                visible: snackbar.undoable
                 text: "Undo"; fill: "transparent"; pressedFill: "#33ffffff"; labelColor: accent
                 onClicked: { undoDelete(); snackbar.shown = false }
             }
@@ -1712,8 +1780,8 @@ ApplicationWindow {
         border.width: 1; border.color: line
         Rectangle {
             y: 6; width: tabBar.tabWidth; height: tabBar.height - 12; radius: height / 2; color: field
-            x: 6 + tabBar.keys.indexOf(currentTab) * width
-            Behavior on x { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
+            // Follows the pages as they move (with the finger, or sliding after a tap).
+            x: 6 + Math.max(0, Math.min(tabBar.keys.length - 1, pages.position)) * width
         }
         Row {
             anchors.fill: parent; anchors.margins: 6

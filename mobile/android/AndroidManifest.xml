@@ -44,6 +44,22 @@
                 android:value="-- %%INSERT_APP_ARGUMENTS%% --" />
         </activity>
 
+        <!-- The home-screen widget (DeadlinesWidget.java) and the service that fills its list. -->
+        <receiver
+            android:name="com.deadlinesapp.deadlines.DeadlinesWidget"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/deadlines_widget_info" />
+        </receiver>
+        <service
+            android:name="com.deadlinesapp.deadlines.DeadlinesWidgetService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.qtprovider"
