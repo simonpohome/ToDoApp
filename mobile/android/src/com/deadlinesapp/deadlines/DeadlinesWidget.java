@@ -34,14 +34,6 @@ public class DeadlinesWidget extends AppWidgetProvider {
         manager.notifyAppWidgetViewDataChanged(ids, R.id.widget_list);
     }
 
-    /** Opens Android's "Add to home screen" dialog for the widget. False if the launcher can't. */
-    public static boolean requestPin(Context context) {
-        AppWidgetManager manager = AppWidgetManager.getInstance(context);
-        if (!manager.isRequestPinAppWidgetSupported())
-            return false;
-        return manager.requestPinAppWidget(new ComponentName(context, DeadlinesWidget.class), null, null);
-    }
-
     static void updateAll(Context context, AppWidgetManager manager, int[] ids) {
         WidgetData data = WidgetData.load(context);
         for (int id : ids) {

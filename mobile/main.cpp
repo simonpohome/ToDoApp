@@ -37,18 +37,6 @@ public:
         Q_UNUSED(json)
 #endif
     }
-
-    // Opens Android's "Add to home screen" dialog for the widget; false where that isn't possible.
-    Q_INVOKABLE bool addToHomeScreen()
-    {
-#ifdef Q_OS_ANDROID
-        return QJniObject::callStaticMethod<jboolean>(
-            "com/deadlinesapp/deadlines/DeadlinesWidget", "requestPin", "(Landroid/content/Context;)Z",
-            QNativeInterface::QAndroidApplication::context().object());
-#else
-        return false;
-#endif
-    }
 };
 
 int main(int argc, char *argv[])

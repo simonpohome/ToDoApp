@@ -176,10 +176,6 @@ ApplicationWindow {
         }
         widgetBridge.update(JSON.stringify({ tasks: out }))
     }
-    function addWidget() {
-        if (!widgetBridge.addToHomeScreen())
-            snackbar.show("Long-press your home screen, tap Widgets, and pick Deadlines", false)
-    }
     Timer { id: saveTimer; interval: 300; onTriggered: saveNow() }
 
     Component.onCompleted: {
@@ -923,16 +919,6 @@ ApplicationWindow {
                 text: tasks.count ? upcoming + " upcoming" : "Nothing due yet"
                 font.pixelSize: 13; color: muted; elide: Text.ElideRight
             }
-        }
-        // Puts the Deadlines list on the home screen as a scrollable widget.
-        Pill {
-            // Belongs to Deadlines: fades as you swipe away (keeping its space, so nothing jumps).
-            visible: hasWidget
-            opacity: Math.max(0, 1 - Math.abs(pages.position) * 2)
-            enabled: opacity > 0.5
-            text: "Add widget"; bold: false
-            fill: cardColor; pressedFill: field
-            onClicked: addWidget()
         }
     }
 
@@ -1840,10 +1826,18 @@ ApplicationWindow {
         Rectangle {
             id: panel
             width: parent.width
+            // One fixed height, so the sheet never moves while it's open: room for the fields plus the
+            // tallest panel (the clock; the calendar is smaller), the button bar, and the navigation
+            // bar. (Shorter screens: as tall as fits; the fields scroll.) The keyboard doesn't change
+            // it either: the button bar rises above the keyboard and the fields scroll.
+            readonly property real fieldsHeight: formTitle.height + subjectField.height + assignmentField.height
+                                                 + dateRow.height + 4 * formCol.spacing
+            readonly property real openHeight: Math.min(
+                grabber.height + fieldsHeight + formCol.spacing + timePanel.implicitHeight + 16
+                    + formFooter.height + bottomInset,
+                root.height - topInset - 24)
             // Rounded top corners; the bottom corners sit below the screen edge.
-            height: Math.min(formCol.implicitHeight + 50 + sheet.bottomSpace,
-                             root.height - topInset - 24) + 40
-            Behavior on height { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+            height: openHeight + 40
             y: formOpen ? root.height - height + 40 + dragDown : root.height
             Behavior on y { enabled: !sheetDrag.active; NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
             radius: 28
@@ -1867,10 +1861,23 @@ ApplicationWindow {
                 }
             }
 
+            // "Add deadline", always at the bottom of the sheet (above the keyboard when it's up).
+            Item {
+                id: formFooter
+                anchors { left: parent.left; right: parent.right; bottom: parent.bottom
+                          bottomMargin: 40 + sheet.bottomSpace }
+                height: 70
+                BigButton {
+                    anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter
+                              leftMargin: 20; rightMargin: 20 }
+                    text: "Add deadline"
+                    onClicked: form.submit()
+                }
+            }
+
             Flickable {
                 id: formFlick
-                anchors { left: parent.left; right: parent.right; top: grabber.bottom; bottom: parent.bottom
-                          bottomMargin: 40 + sheet.bottomSpace }
+                anchors { left: parent.left; right: parent.right; top: grabber.bottom; bottom: formFooter.top }
                 contentWidth: width
                 contentHeight: formCol.implicitHeight + 16
                 clip: true
@@ -1961,7 +1968,7 @@ ApplicationWindow {
                         function onFormOpenChanged() { if (!root.formOpen) { form.reset(); root.contentItem.forceActiveFocus() } }
                     }
 
-                    Text { text: "New deadline"; font.pixelSize: 20; font.bold: true; color: textColor }
+                    Text { id: formTitle; text: "New deadline"; font.pixelSize: 20; font.bold: true; color: textColor }
 
                     Field {
                         id: subjectField; placeholderText: "Subject"
@@ -2016,6 +2023,7 @@ ApplicationWindow {
 
                     // Due date (opens the calendar) and an optional time (opens the clock).
                     RowLayout {
+                        id: dateRow
                         Layout.fillWidth: true
                         spacing: 8
                         Rectangle {
@@ -2157,7 +2165,6 @@ ApplicationWindow {
                             }
                         }
                     }
-                    BigButton { Layout.topMargin: 6; text: "Add deadline"; onClicked: form.submit() }
                 }
             }
         }
