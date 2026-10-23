@@ -9,6 +9,9 @@ import android.content.Intent;
 import android.net.Uri;
 import android.widget.RemoteViews;
 
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+
 /**
  * The home-screen widget: the Deadlines tab as a scrollable list.
  *
@@ -24,15 +27,24 @@ public class DeadlinesWidget extends AppWidgetProvider {
         manager.notifyAppWidgetViewDataChanged(ids, R.id.widget_list);
     }
 
-    /** Called by the app (main.cpp) after it has saved, so the widgets show the new list. */
+    /** Called by the app (main.cpp) after it has saved, so the widgets show the new list.
+     *  Done on a thread of its own: updateAppWidget() can wait for the list's service, which
+     *  needs Android's main thread, and that thread may itself be waiting for the app (say,
+     *  while it handles the back button), which would freeze both. */
     public static void refresh(Context context) {
-        AppWidgetManager manager = AppWidgetManager.getInstance(context);
-        int[] ids = manager.getAppWidgetIds(new ComponentName(context, DeadlinesWidget.class));
-        if (ids.length == 0)
-            return;
-        updateAll(context, manager, ids);
-        manager.notifyAppWidgetViewDataChanged(ids, R.id.widget_list);
+        final Context app = context.getApplicationContext();
+        REFRESHER.execute(() -> {
+            AppWidgetManager manager = AppWidgetManager.getInstance(app);
+            int[] ids = manager.getAppWidgetIds(new ComponentName(app, DeadlinesWidget.class));
+            if (ids.length == 0)
+                return;
+            updateAll(app, manager, ids);
+            manager.notifyAppWidgetViewDataChanged(ids, R.id.widget_list);
+        });
     }
+
+    /** One refresh at a time, in the order the app saved. */
+    private static final Executor REFRESHER = Executors.newSingleThreadExecutor();
 
     static void updateAll(Context context, AppWidgetManager manager, int[] ids) {
         WidgetData data = WidgetData.load(context);

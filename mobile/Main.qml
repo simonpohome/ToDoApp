@@ -231,13 +231,30 @@ ApplicationWindow {
         else saveNow()
     }
     function goBack() {
+        // A floating keyboard leaves back to the app: put the keyboard away first.
+        if (Qt.inputMethod.visible) { Qt.inputMethod.hide(); return true }
         if (colorPopup.opened) { colorPopup.close(); return true }
         if (settingsSheet.opened) { settingsSheet.close(); return true }
         if (formOpen) { formOpen = false; return true }
         if (currentTab !== "mine") { currentTab = "mine"; return true }
         return false
     }
-    Shortcut { sequence: "Esc"; onActivated: goBack() }   // the same on a PC preview
+    // The back button (and Esc on a PC preview), caught here rather than left to Qt: with a Drawer in
+    // the app, an unhandled back press closed the whole app even with a sheet open.
+    // One press can arrive twice (the key itself and Android's back callback, a few ms apart), so a
+    // second one right after counts as the same press, or it would close the sheet and then leave.
+    property double lastBack: 0
+    Shortcut {
+        sequences: ["Back", "Esc"]
+        onActivated: {
+            const now = Date.now()
+            if (now - lastBack < 300) return
+            lastBack = now
+            if (goBack()) return
+            saveNow()
+            if (hasWidget) widgetBridge.moveToBack()   // to the background, as Android apps do
+        }
+    }
 
     // ---------- My deadlines ----------
     property bool stepsRoleKnown: false
@@ -1133,7 +1150,10 @@ ApplicationWindow {
             interactive: draggedCard === null
             boundsBehavior: Flickable.DragOverBounds
 
+            // On the page itself, not in the scrolling content: wherever the list was scrolled
+            // to before the last card went, the hint stays in view.
             Text {
+                parent: list
                 anchors.horizontalCenter: parent.horizontalCenter
                 y: 120
                 visible: tasks.count === 0
@@ -1391,6 +1411,11 @@ ApplicationWindow {
                                         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
                                         implicitHeight: 42
                                         placeholderText: "New step, then Enter"
+                                        // An explicit Enter key on every field: left to itself, Qt shows
+                                        // "Next" on Android when another field follows, and turns that key
+                                        // into Tab (focus moves on, nothing is added). Return adds the step
+                                        // and keeps the keyboard up for the next one.
+                                        EnterKey.type: Qt.EnterKeyReturn
                                         background: Rectangle { radius: 21; color: field }
                                         onAccepted: {
                                             if (text.trim()) { addStep(slot.index, text.trim()); text = "" }
@@ -1728,6 +1753,7 @@ ApplicationWindow {
                                     id: feedInput
                                     placeholderText: "Calendar Feed link"
                                     inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoAutoUppercase
+                                    EnterKey.type: Qt.EnterKeyGo   // (see stepInput: never left to Qt)
                                     onAccepted: connectCanvas(text)
                                 }
                                 Pill {
@@ -2169,6 +2195,7 @@ ApplicationWindow {
 
                     Field {
                         id: subjectField; placeholderText: "Subject"
+                        EnterKey.type: Qt.EnterKeyReturn   // on to Assignment, keyboard stays (see stepInput)
                         onAccepted: assignmentField.forceActiveFocus()
                         onActiveFocusChanged: if (activeFocus) { form.calendarOpen = false; form.timeOpen = false }
                     }
@@ -2214,6 +2241,7 @@ ApplicationWindow {
                     }
                     Field {
                         id: assignmentField; placeholderText: "Assignment"
+                        EnterKey.type: Qt.EnterKeyDone   // keyboard away, calendar open (see stepInput)
                         onAccepted: form.openCalendar()
                         onActiveFocusChanged: if (activeFocus) { form.calendarOpen = false; form.timeOpen = false }
                     }
@@ -2312,6 +2340,7 @@ ApplicationWindow {
                                     spacing: 4
                                     TimeDigits {
                                         id: hourInput
+                                        EnterKey.type: Qt.EnterKeyDone   // sets the time (see stepInput)
                                         active: !form.pickingMinute
                                         validator: RegularExpressionValidator { regularExpression: /([01]?\d|2[0-3])?/ }   // 0-23
                                         onActiveFocusChanged: if (activeFocus) form.pickingMinute = false
@@ -2335,6 +2364,7 @@ ApplicationWindow {
                                     }
                                     TimeDigits {
                                         id: minuteInput
+                                        EnterKey.type: Qt.EnterKeyDone
                                         active: form.pickingMinute
                                         validator: RegularExpressionValidator { regularExpression: /([0-5]?\d)?/ }   // 0-59
                                         onActiveFocusChanged: if (activeFocus) form.pickingMinute = true

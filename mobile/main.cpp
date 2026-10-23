@@ -13,7 +13,7 @@
 #endif
 
 // What Main.qml calls (as "widgetBridge") for the Android-only parts: keeping the home-screen
-// widget up to date, and the status/navigation bar icons in light or dark.
+// widget up to date, the status/navigation bar icons in light or dark, and leaving with back.
 class WidgetBridge : public QObject
 {
     Q_OBJECT
@@ -35,6 +35,16 @@ public:
                                            QNativeInterface::QAndroidApplication::context().object());
 #else
         Q_UNUSED(json)
+#endif
+    }
+
+    // The back button with nothing left to close: the app goes to the background.
+    Q_INVOKABLE void moveToBack()
+    {
+#ifdef Q_OS_ANDROID
+        QJniObject::callStaticMethod<void>("com/deadlinesapp/deadlines/AppTask", "moveToBack",
+                                           "(Landroid/content/Context;)V",
+                                           QNativeInterface::QAndroidApplication::context().object());
 #endif
     }
 
