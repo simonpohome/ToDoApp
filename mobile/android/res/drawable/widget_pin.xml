@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The push pin shown on pinned deadlines (the same shape as in the app). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="14dp"
+    android:height="14dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:strokeColor="@color/widget_text"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M8.5,4 L15.5,4 M9.5,4 L9.5,10 L6.5,13.5 L17.5,13.5 L14.5,10 L14.5,4 M12,13.5 L12,20.5" />
+</vector>

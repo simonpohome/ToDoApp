@@ -28,22 +28,40 @@ ApplicationWindow {
     // (or preview.py), so every Text uses it without saying so.
 
     // ---------- Look ----------
-    readonly property color bg: "#e3eefb"           // light blue page
-    readonly property color cardColor: "#ffffff"
-    readonly property color textColor: "#1c1c1e"
-    readonly property color muted: "#8e8e93"
-    readonly property color line: "#dde6f1"         // ring tracks, connectors, pressed states
-    readonly property color field: "#eff5fc"        // input fields inside white cards
-    readonly property color accent: "#f5a8c5"       // pastel pink
-    readonly property color accentHover: "#f08db5"
-    readonly property color accentText: "#7a2348"   // deep pink text on the pink accent
-    readonly property color doneColor: "#c7c7cc"
-    readonly property color green: "#8fd6a5"        // more than a week left
-    readonly property color yellow: "#f5d77a"       // 3-7 days left
-    readonly property color red: "#f2a0a0"          // 2 days or less
-    readonly property color overdueText: "#d9686b"
+    // Light or dark: "system" follows the phone; "light"/"dark" are picked in Settings. (Only read
+    // the phone's scheme: asking Qt to switch it on Android made the window stop drawing.)
+    property string theme: "system"
+    readonly property bool dark: theme === "dark"
+                                 || (theme === "system" && Qt.styleHints.colorScheme === Qt.ColorScheme.Dark)
+    // The phone's status/navigation bar icons: light on the dark look, dark on the light one.
+    function applyBars() { if (hasWidget) widgetBridge.setDarkBars(dark) }
+    onDarkChanged: applyBars()
+    onThemeChanged: if (loaded) updateWidget()   // the home-screen widget switches along
+
+    // Light: the soft blue page with white cards. Dark: a deep blue-grey page with lighter cards,
+    // and the same pastels a little softer so they don't glow.
+    readonly property color bg: dark ? "#121821" : "#e3eefb"
+    readonly property color cardColor: dark ? "#1d2430" : "#ffffff"
+    readonly property color textColor: dark ? "#eef2f7" : "#1c1c1e"
+    readonly property color muted: dark ? "#8b95a5" : "#8e8e93"
+    readonly property color line: dark ? "#2d3746" : "#dde6f1"         // ring tracks, connectors, pressed states
+    readonly property color field: dark ? "#262f3c" : "#eff5fc"        // input fields inside cards
+    readonly property color accent: dark ? "#e7a0bd" : "#f5a8c5"       // pastel pink
+    readonly property color accentHover: dark ? "#f1b8cf" : "#f08db5"
+    readonly property color accentText: dark ? "#5c1534" : "#7a2348"   // deep pink text on the pink accent
+    readonly property color doneColor: dark ? "#5c6676" : "#c7c7cc"
+    readonly property color green: dark ? "#7cc795" : "#8fd6a5"        // more than a week left
+    readonly property color yellow: dark ? "#e3c66c" : "#f5d77a"       // 3-7 days left
+    readonly property color red: dark ? "#e39595" : "#f2a0a0"          // 2 days or less
+    readonly property color purple: dark ? "#b29de6" : "#c4b1f5"       // no due date
+    readonly property color overdueText: dark ? "#f08e90" : "#d9686b"
     readonly property color deleteX: "#9b1c1c"
-    readonly property color tabTrack: "#d2e2f6"
+    readonly property color tabTrack: dark ? "#19202a" : "#d2e2f6"
+    readonly property color tagText: "#1c1c1e"   // text on the pastel subject tags, in both modes
+    // The pill behind the chosen tab / setting. (In dark mode lighter than what it sits on, so it
+    // stands out the way the light one does.)
+    readonly property color selectedOnCard: dark ? "#333d4e" : field
+    readonly property color selectedOnField: dark ? "#3c4758" : cardColor
     readonly property int autoSyncMinutes: 30
     // Subject colours: new subjects take the first unused one (kept clear of the green/yellow/red
     // that mean time left, and of the pink accent).
@@ -78,15 +96,17 @@ ApplicationWindow {
     function today() { const t = new Date(); t.setHours(0, 0, 0, 0); return t }
     function parseDate(iso) { const p = iso.split("-"); return new Date(p[0], p[1] - 1, p[2]) }
     function isoDate(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) }
-    function daysLeft(iso) { return Math.round((parseDate(iso) - today()) / 86400000) }
+    // Deadlines may have no date (due ""): they're purple, say "No due date", and sort last.
+    function daysLeft(iso) { return iso ? Math.round((parseDate(iso) - today()) / 86400000) : NaN }
     function relative(n) {
         if (n === 0) return "today"
         if (n === 1) return "tomorrow"
         if (n === -1) return "yesterday"
         return n > 0 ? "in " + n + " days" : (-n) + " days ago"
     }
-    function timeColor(iso) { const n = daysLeft(iso); return n > 7 ? green : n > 2 ? yellow : red }
-    function whenText(iso, time) { return Qt.formatDate(parseDate(iso), "ddd d MMM") + (time ? " " + time : "") }
+    function timeColor(iso) { if (!iso) return purple; const n = daysLeft(iso); return n > 7 ? green : n > 2 ? yellow : red }
+    function whenText(iso, time) { return iso ? Qt.formatDate(parseDate(iso), "ddd d MMM") + (time ? " " + time : "") : "No due date" }
+    function overdue(iso) { return !!iso && daysLeft(iso) < 0 }
     function blend(a, b, t) { return Qt.rgba(a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t, 1) }
     function progressColor(p) { return p <= 50 ? blend(red, yellow, p / 50) : blend(yellow, green, (p - 50) / 50) }
     function progressOf(steps, done) {
@@ -128,8 +148,8 @@ ApplicationWindow {
     function fromJson(t) {
         return {
             taskId: t.id || uid(), subject: t.subject || "", assignment: t.assignment || "",
-            due: t.due, time: t.time || "", done: !!t.done, collapsed: !!t.collapsed,
-            canvasUid: t.canvas_uid || "",
+            due: t.due || "", time: t.time || "", done: !!t.done, collapsed: !!t.collapsed,
+            pinned: !!t.pinned, canvasUid: t.canvas_uid || "",
             stepsBeforeDone: t.steps_before_done ? JSON.stringify(t.steps_before_done) : "",
             steps: (t.subtasks || []).map(s => ({ stepId: s.id || uid(), text: s.text, done: !!s.done }))
         }
@@ -143,6 +163,7 @@ ApplicationWindow {
         const o = { id: t.taskId, subject: t.subject, assignment: t.assignment, due: t.due, done: t.done, subtasks: steps }
         if (t.time) o.time = t.time
         if (t.collapsed) o.collapsed = true
+        if (t.pinned) o.pinned = true
         if (t.canvasUid) o.canvas_uid = t.canvasUid
         if (t.stepsBeforeDone) o.steps_before_done = JSON.parse(t.stepsBeforeDone)
         return o
@@ -172,9 +193,11 @@ ApplicationWindow {
         for (let i = 0; i < tasks.count; i++) {
             const t = tasks.get(i)
             out.push({ subject: t.subject, assignment: t.assignment, due: t.due, time: t.time,
-                       done: t.done, color: String(subjectColor(t.subject)) })
+                       done: t.done, pinned: t.pinned, color: String(subjectColor(t.subject)) })
         }
-        widgetBridge.update(JSON.stringify({ tasks: out }))
+        // The appearance setting too, so the widget is light or dark like the app (System: the
+        // widget follows the phone by itself).
+        widgetBridge.update(JSON.stringify({ theme: theme, tasks: out }))
     }
     Timer { id: saveTimer; interval: 300; onTriggered: saveNow() }
 
@@ -187,6 +210,8 @@ ApplicationWindow {
         subjectColors = data.subject_colors || {}
         for (const s of subjects) ensureColor(s)
         for (let i = 0; i < tasks.count; i++) ensureColor(tasks.get(i).subject)
+        theme = store.value("theme", "system")
+        applyBars()
         loaded = true
         rev++
         updateWidget()   // a widget placed before the app ever ran gets the list straight away
@@ -207,6 +232,7 @@ ApplicationWindow {
     }
     function goBack() {
         if (colorPopup.opened) { colorPopup.close(); return true }
+        if (settingsSheet.opened) { settingsSheet.close(); return true }
         if (formOpen) { formOpen = false; return true }
         if (currentTab !== "mine") { currentTab = "mine"; return true }
         return false
@@ -224,14 +250,19 @@ ApplicationWindow {
         if (teach) tasks.get(i).steps.remove(0)
         stepsRoleKnown = true
     }
+    // Where a deadline belongs by date: by due date and time (no time = end of that day), and
+    // deadlines without a date after all the dated ones.
+    function dateKey(t) { return t.due ? t.due + " " + (t.time || "24:00") : "9999" }
+    // Pinned deadlines are always the first ones in the list.
+    function pinnedCount() { let n = 0; while (n < tasks.count && tasks.get(n).pinned) n++; return n }
     function addTask(subject, assignment, due, time, canvasUid) {
-        // By due date and time (no time = end of that day); the manual order of the rest is kept.
-        const when = t => t.due + " " + (t.time || "24:00")
-        const key = when({ due: due, time: time })
-        let i = 0
-        while (i < tasks.count && when(tasks.get(i)) <= key) i++
+        // Below the pinned ones, by date; the manual order of the rest is kept.
+        const key = dateKey({ due: due, time: time })
+        let i = pinnedCount()
+        while (i < tasks.count && dateKey(tasks.get(i)) <= key) i++
         insertTask(i, { taskId: uid(), subject: subject, assignment: assignment, due: due, time: time || "",
-                        done: false, collapsed: false, canvasUid: canvasUid || "", stepsBeforeDone: "", steps: [] })
+                        done: false, collapsed: false, pinned: false, canvasUid: canvasUid || "",
+                        stepsBeforeDone: "", steps: [] })
         if (!subjects.some(s => s.toLowerCase() === subject.toLowerCase())) subjects = subjects.concat([subject])
         ensureColor(subject)
         changed()
@@ -296,6 +327,31 @@ ApplicationWindow {
         changed()
     }
     function toggleCollapsed(i) { tasks.setProperty(i, "collapsed", !tasks.get(i).collapsed); changed() }
+    function togglePinned(i) {
+        if (!tasks.get(i).pinned) {
+            // Pinned: to the very top.
+            tasks.setProperty(i, "pinned", true)
+            tasks.move(i, 0, 1)
+        } else {
+            // Unpinned: back below the pinned ones, where its date belongs.
+            tasks.setProperty(i, "pinned", false)
+            tasks.move(i, tasks.count - 1, 1)
+            const key = dateKey(tasks.get(tasks.count - 1))
+            let j = pinnedCount()
+            while (j < tasks.count - 1 && dateKey(tasks.get(j)) <= key) j++
+            tasks.move(tasks.count - 1, j, 1)
+        }
+        changed()
+    }
+    // After a card is dragged: keep the pinned ones above the rest (in the order they're in).
+    function keepPinnedFirst() {
+        let k = 0
+        for (let i = 0; i < tasks.count; i++) {
+            if (!tasks.get(i).pinned) continue
+            if (i !== k) tasks.move(i, k, 1)
+            k++
+        }
+    }
     function removeSubject(name) { subjects = subjects.filter(s => s !== name); changed() }
     readonly property int upcoming: { rev; let n = 0; for (let i = 0; i < tasks.count; i++) if (!tasks.get(i).done) n++; return n }
 
@@ -500,6 +556,92 @@ ApplicationWindow {
         }
     }
 
+    component PinIcon: Shape {
+        // A push pin.
+        id: pinIcon
+        property color stroke: muted
+        width: 20; height: 20
+        preferredRendererType: Shape.CurveRenderer
+        ShapePath {
+            strokeColor: pinIcon.stroke; strokeWidth: 2; fillColor: "transparent"
+            capStyle: ShapePath.RoundCap; joinStyle: ShapePath.RoundJoin
+            scale: Qt.size(pinIcon.width / 24, pinIcon.height / 24)
+            PathSvg { path: "M 8.5 4 L 15.5 4 M 9.5 4 L 9.5 10 L 6.5 13.5 L 17.5 13.5 L 14.5 10 L 14.5 4 M 12 13.5 L 12 20.5" }
+        }
+    }
+
+    component PinButton: Item {
+        // Round button with a pin; pink while the deadline is pinned to the top.
+        id: pinButton
+        property bool pinned: false
+        signal clicked()
+        width: 36; height: 36
+        Rectangle {
+            anchors.fill: parent; radius: width / 2
+            color: pinButton.pinned ? accent : pinTap.pressed ? line : "transparent"
+            Behavior on color { ColorAnimation { duration: 120 } }
+        }
+        PinIcon { anchors.centerIn: parent; stroke: pinButton.pinned ? accentText : muted }
+        MouseArea { id: pinTap; anchors.fill: parent; onClicked: pinButton.clicked() }
+    }
+
+    component SettingsIcon: Shape {
+        // Two sliders: the usual "settings" sign.
+        id: settingsIcon
+        property color stroke: muted
+        width: 22; height: 22
+        preferredRendererType: Shape.CurveRenderer
+        ShapePath {
+            strokeColor: settingsIcon.stroke; strokeWidth: 2; fillColor: "transparent"
+            capStyle: ShapePath.RoundCap; joinStyle: ShapePath.RoundJoin
+            scale: Qt.size(settingsIcon.width / 24, settingsIcon.height / 24)
+            PathSvg { path: "M 4 8 L 20 8 M 4 16 L 20 16" }
+        }
+        ShapePath {
+            strokeColor: settingsIcon.stroke; strokeWidth: 2; fillColor: cardColor
+            scale: Qt.size(settingsIcon.width / 24, settingsIcon.height / 24)
+            PathAngleArc { centerX: 9; centerY: 8; radiusX: 2.6; radiusY: 2.6; startAngle: 0; sweepAngle: 360 }
+        }
+        ShapePath {
+            strokeColor: settingsIcon.stroke; strokeWidth: 2; fillColor: cardColor
+            scale: Qt.size(settingsIcon.width / 24, settingsIcon.height / 24)
+            PathAngleArc { centerX: 15; centerY: 16; radiusX: 2.6; radiusY: 2.6; startAngle: 0; sweepAngle: 360 }
+        }
+    }
+
+    component Segmented: Rectangle {
+        // A pill switch between a few choices, like the tab bar: [[value, label], ...].
+        id: seg
+        property var options: []
+        property string value: ""
+        signal picked(string value)
+        readonly property real optionWidth: (width - 8) / Math.max(1, options.length)
+        implicitHeight: 44
+        radius: height / 2
+        color: field
+        Rectangle {
+            y: 4; width: seg.optionWidth; height: seg.height - 8; radius: height / 2; color: selectedOnField
+            x: 4 + Math.max(0, seg.options.findIndex(o => o[0] === seg.value)) * width
+            Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+        }
+        Row {
+            anchors.fill: parent; anchors.margins: 4
+            Repeater {
+                model: seg.options
+                Item {
+                    required property var modelData
+                    width: seg.optionWidth; height: seg.height - 8
+                    Text {
+                        anchors.centerIn: parent
+                        text: modelData[1]; font.pixelSize: 14; font.bold: true
+                        color: seg.value === modelData[0] ? textColor : muted
+                    }
+                    MouseArea { anchors.fill: parent; onClicked: seg.picked(modelData[0]) }
+                }
+            }
+        }
+    }
+
     component Pill: Rectangle {
         // Small rounded text button.
         id: pill
@@ -618,7 +760,7 @@ ApplicationWindow {
             anchors.centerIn: parent
             width: Math.min(implicitWidth, tag.width - 18)
             text: tag.subject; elide: Text.ElideRight
-            font.pixelSize: 12; font.bold: true; color: textColor
+            font.pixelSize: 12; font.bold: true; color: tagText
         }
         // A MouseArea rather than a TapHandler, so the tap doesn't also reach the card underneath.
         MouseArea {
@@ -879,7 +1021,7 @@ ApplicationWindow {
                         width: 40; height: 40; radius: 20; color: modelData
                         CheckMark {
                             anchors.centerIn: parent
-                            width: 16; height: 16; stroke: textColor
+                            width: 16; height: 16; stroke: tagText
                             visible: subjectColors[colorKey(colorPopup.subject)] === swatch.modelData
                         }
                         MouseArea { anchors.fill: parent; onClicked: { setSubjectColor(colorPopup.subject, swatch.modelData); colorPopup.close() } }
@@ -918,6 +1060,50 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 text: tasks.count ? upcoming + " upcoming" : "Nothing due yet"
                 font.pixelSize: 13; color: muted; elide: Text.ElideRight
+            }
+        }
+        // Settings (light/dark), kept out of the way in the corner.
+        Item {
+            width: 44; height: 44
+            Rectangle {
+                anchors.fill: parent; radius: width / 2
+                color: settingsTap.pressed ? line : cardColor
+                Behavior on color { ColorAnimation { duration: 120 } }
+            }
+            SettingsIcon { anchors.centerIn: parent; stroke: textColor }
+            MouseArea { id: settingsTap; anchors.fill: parent; onClicked: settingsSheet.open() }
+        }
+    }
+
+    Drawer {
+        // Settings, as a sheet from the bottom (swipe it down or tap outside to close).
+        id: settingsSheet
+        edge: Qt.BottomEdge
+        width: root.width
+        height: settingsCol.implicitHeight + 56 + bottomInset
+        interactive: opened   // swipe down to close; no opening by swiping up from the screen edge
+        dim: true
+        background: Rectangle {
+            color: cardColor; radius: 28
+            Rectangle { anchors { left: parent.left; right: parent.right; bottom: parent.bottom } height: 28; color: cardColor }
+        }
+        ColumnLayout {
+            id: settingsCol
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 20; topMargin: 14 }
+            spacing: 12
+            Rectangle { Layout.alignment: Qt.AlignHCenter; width: 44; height: 5; radius: 2.5; color: line }
+            Text { text: "Settings"; font.pixelSize: 20; font.bold: true; color: textColor }
+            Text { Layout.topMargin: 4; text: "Appearance"; font.pixelSize: 14; font.bold: true; color: textColor }
+            Segmented {
+                Layout.fillWidth: true
+                options: [["system", "System"], ["light", "Light"], ["dark", "Dark"]]
+                value: theme
+                onPicked: (value) => { theme = value; store.setValue("theme", value); store.sync() }
+            }
+            Text {
+                Layout.fillWidth: true; wrapMode: Text.Wrap
+                text: "System follows your phone's light or dark setting."
+                font.pixelSize: 13; color: muted
             }
         }
     }
@@ -1094,6 +1280,7 @@ ApplicationWindow {
                                             card.Drag.drop()
                                             card.held = false
                                             draggedCard = null
+                                            keepPinnedFirst()
                                             changed()   // save the new order
                                         }
                                         onReleased: drop()
@@ -1106,6 +1293,11 @@ ApplicationWindow {
                                         RowLayout {
                                             Layout.fillWidth: true
                                             spacing: 8
+                                            PinIcon {   // shows this one is pinned to the top
+                                                visible: slot.model.pinned
+                                                width: 16; height: 16
+                                                stroke: slot.model.done ? doneColor : textColor
+                                            }
                                             Rectangle { width: 10; height: 10; radius: 5; color: card.mark }
                                             SubjectPill {
                                                 Layout.maximumWidth: 130
@@ -1119,7 +1311,7 @@ ApplicationWindow {
                                                 font.pixelSize: 13
                                                 font.strikeout: slot.model.done
                                                 color: slot.model.done ? doneColor
-                                                     : daysLeft(slot.model.due) < 0 ? overdueText : muted
+                                                     : overdue(slot.model.due) ? overdueText : muted
                                             }
                                         }
                                         Text {
@@ -1131,9 +1323,10 @@ ApplicationWindow {
                                             color: slot.model.done ? doneColor : textColor
                                         }
                                         Text {
+                                            visible: slot.model.due !== ""   // (no date: nothing to count down)
                                             text: relative(daysLeft(slot.model.due))
                                             font.pixelSize: 13
-                                            color: slot.model.done ? doneColor : daysLeft(slot.model.due) < 0 ? overdueText : muted
+                                            color: slot.model.done ? doneColor : overdue(slot.model.due) ? overdueText : muted
                                         }
                                     }
                                     Pie { id: cardPie; anchors.right: parent.right; anchors.top: parent.top; pct: card.pct }
@@ -1207,7 +1400,7 @@ ApplicationWindow {
                                     }
                                 }
 
-                                // Card actions: show/hide steps, add a step, delete.
+                                // Card actions: show/hide steps, add a step, pin, delete.
                                 RowLayout {
                                     Layout.fillWidth: true
                                     Layout.topMargin: 8
@@ -1227,6 +1420,10 @@ ApplicationWindow {
                                         onClicked: card.openStepInput()
                                     }
                                     Item { Layout.fillWidth: true }
+                                    PinButton {
+                                        pinned: slot.model.pinned
+                                        onClicked: togglePinned(slot.index)
+                                    }
                                     RoundIcon {
                                         width: 36; height: 36; turn: 45
                                         pressedFill: red; mark: muted
@@ -1738,7 +1935,7 @@ ApplicationWindow {
         anchors { left: parent.left; right: parent.right; leftMargin: 16; rightMargin: currentTab === "mine" ? 92 : 16
                   bottom: tabBar.top; bottomMargin: 18 }
         height: Math.max(52, snackText.implicitHeight + 26); radius: 18
-        color: textColor
+        color: dark ? "#3a4555" : "#1c1c1e"
         opacity: shown ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 180 } }
@@ -1765,7 +1962,7 @@ ApplicationWindow {
         color: cardColor
         border.width: 1; border.color: line
         Rectangle {
-            y: 6; width: tabBar.tabWidth; height: tabBar.height - 12; radius: height / 2; color: field
+            y: 6; width: tabBar.tabWidth; height: tabBar.height - 12; radius: height / 2; color: selectedOnCard
             // Follows the pages as they move (with the finger, or sliding after a tap).
             x: 6 + Math.max(0, Math.min(tabBar.keys.length - 1, pages.position)) * width
         }
@@ -1898,7 +2095,7 @@ ApplicationWindow {
                         id: form
                         property date chosen: new Date(NaN)
                         property string chosenTime: ""   // "HH:MM", or "" for no time
-                        property bool dateInvalid: false
+                        readonly property bool hasDate: !isNaN(chosen.getTime())
                         property bool calendarOpen: false
                         property bool timeOpen: false
                         property bool pickingMinute: false   // the clock shows minutes (else hours)
@@ -1913,7 +2110,7 @@ ApplicationWindow {
                         function reset() {
                             subjectField.text = ""; assignmentField.text = ""
                             subjectField.invalid = false; assignmentField.invalid = false
-                            chosen = new Date(NaN); dateInvalid = false; calendarOpen = false
+                            chosen = new Date(NaN); calendarOpen = false
                             chosenTime = ""; timeOpen = false
                             formFlick.contentY = 0
                         }
@@ -1947,11 +2144,11 @@ ApplicationWindow {
                         function submit() {
                             subjectField.invalid = subjectField.text.trim() === ""
                             assignmentField.invalid = assignmentField.text.trim() === ""
-                            dateInvalid = isNaN(chosen.getTime())
                             if (subjectField.invalid) { subjectField.forceActiveFocus(); return }
                             if (assignmentField.invalid) { assignmentField.forceActiveFocus(); return }
-                            if (dateInvalid) { formFlick.contentY = 0; return }
-                            const i = addTask(subjectField.text.trim(), assignmentField.text.trim(), isoDate(chosen), chosenTime, "")
+                            // The date is optional (no date: it goes last, in purple); a time needs a date.
+                            const due = hasDate ? isoDate(chosen) : ""
+                            const i = addTask(subjectField.text.trim(), assignmentField.text.trim(), due, due ? chosenTime : "", "")
                             formOpen = false
                             Qt.callLater(ensureCardVisible, i)
                         }
@@ -2021,7 +2218,7 @@ ApplicationWindow {
                         onActiveFocusChanged: if (activeFocus) { form.calendarOpen = false; form.timeOpen = false }
                     }
 
-                    // Due date (opens the calendar) and an optional time (opens the clock).
+                    // Due date (optional; opens the calendar) and a time (opens the clock; needs a date).
                     RowLayout {
                         id: dateRow
                         Layout.fillWidth: true
@@ -2030,19 +2227,30 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             implicitHeight: 48; radius: 24
                             color: dueTap.pressed ? line : field
-                            border.width: form.dateInvalid ? 2 : 0; border.color: red
                             Text {
-                                anchors { left: parent.left; right: parent.right; leftMargin: 20; rightMargin: 12
+                                anchors { left: parent.left; right: parent.right; leftMargin: 20; rightMargin: 44
                                           verticalCenter: parent.verticalCenter }
                                 elide: Text.ElideRight
-                                text: isNaN(form.chosen.getTime()) ? "Due date" : Qt.formatDate(form.chosen, "ddd d MMMM yyyy")
-                                color: isNaN(form.chosen.getTime()) ? muted : textColor
+                                text: form.hasDate ? Qt.formatDate(form.chosen, "ddd d MMMM yyyy") : "Due date (optional)"
+                                color: form.hasDate ? textColor : muted
                             }
                             MouseArea { id: dueTap; anchors.fill: parent; onClicked: form.openCalendar() }
+                            RoundIcon {   // remove the date again (and its time)
+                                anchors.right: parent.right; anchors.rightMargin: 6
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: form.hasDate
+                                turn: 45; pressedFill: line
+                                onClicked: {
+                                    form.chosen = new Date(NaN); form.chosenTime = ""
+                                    form.calendarOpen = false; form.timeOpen = false
+                                }
+                            }
                         }
                         Rectangle {
                             Layout.preferredWidth: 118
                             implicitHeight: 48; radius: 24
+                            enabled: form.hasDate   // a time only means something on a day
+                            opacity: enabled ? 1 : 0.45
                             color: timeTap.pressed ? line : field
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter; x: 20
@@ -2078,7 +2286,7 @@ ApplicationWindow {
                             id: calendarPicker
                             width: parent.width
                             selected: form.chosen
-                            onPicked: (day) => { form.chosen = day; form.dateInvalid = false; form.calendarOpen = false }
+                            onPicked: (day) => { form.chosen = day; form.calendarOpen = false }
                         }
                     }
                     // Time: tap the hour then the minute on the clock (that sets it), or tap a box and type

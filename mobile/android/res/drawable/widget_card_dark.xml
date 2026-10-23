@@ -1,0 +1,6 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- A card's body, always dark (the app's appearance setting is Dark). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/widget_card_dark" />
+    <corners android:radius="18dp" />
+</shape>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- While the phone is in dark mode: the app's dark page from the first frame, with light bar
+         icons on it. (The app then follows its own setting, see SystemBars.java.) -->
+    <style name="DeadlinesTheme" parent="android:Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@color/deadlines_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+    <color name="deadlines_background">#121821</color>
+</resources>

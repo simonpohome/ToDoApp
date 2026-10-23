@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The widget's colours. The plain names follow the phone's light/dark mode (values-night/ has
+     their dark versions); the _light / _dark ones are fixed, for when the app's own setting is
+     Light or Dark rather than System. -->
+<resources>
+    <color name="widget_panel">#e3eefb</color>
+    <color name="widget_card">#ffffff</color>
+    <color name="widget_text">#1c1c1e</color>
+    <color name="widget_muted">#8e8e93</color>
+
+    <color name="widget_panel_light">#e3eefb</color>
+    <color name="widget_card_light">#ffffff</color>
+    <color name="widget_panel_dark">#121821</color>
+    <color name="widget_card_dark">#1d2430</color>
+</resources>

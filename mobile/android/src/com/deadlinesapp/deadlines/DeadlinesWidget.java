@@ -40,6 +40,14 @@ public class DeadlinesWidget extends AppWidgetProvider {
             RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.widget_deadlines);
             views.setTextViewText(R.id.widget_subtitle, data.subtitle());
 
+            // Light or dark: as the app is set (Light / Dark), or following the phone (System).
+            WidgetLook look = new WidgetLook(context, data);
+            look.background(views, R.id.widget_root, R.drawable.widget_background,
+                            R.drawable.widget_background_light, R.drawable.widget_background_dark);
+            look.color(views, R.id.widget_title, "setTextColor", WidgetLook.TEXT);
+            look.color(views, R.id.widget_subtitle, "setTextColor", WidgetLook.MUTED);
+            look.color(views, R.id.widget_empty, "setTextColor", WidgetLook.MUTED);
+
             // The scrolling list gets its cards from DeadlinesWidgetService. (The data URI keeps
             // each widget's adapter separate.)
             Intent service = new Intent(context, DeadlinesWidgetService.class);

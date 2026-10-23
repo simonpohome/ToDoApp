@@ -1,6 +1,8 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- The widget's panel: the app's light blue page, with round corners. -->
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- The widget's panel, following the phone's light/dark mode, with round corners. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="#e3eefb" />
+    <solid android:color="@color/widget_panel" />
     <corners android:radius="26dp" />
 </shape>
+
+

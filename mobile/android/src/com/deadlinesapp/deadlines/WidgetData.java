@@ -15,12 +15,19 @@ import java.util.List;
 final class WidgetData {
 
     static final class Item {
-        String subject, assignment, due, time, color;
-        boolean done;
+        String subject, assignment, due, time, color;   // due "" = no due date
+        boolean done, pinned;
     }
 
     final List<Item> items = new ArrayList<>();
     int upcoming;
+    // The app's appearance setting: "system" (follow the phone), "light" or "dark".
+    String theme = "system";
+
+    /** 0 = always light, 1 = always dark, -1 = follow the phone. */
+    int forcedLook() {
+        return theme.equals("light") ? 0 : theme.equals("dark") ? 1 : -1;
+    }
 
     static WidgetData load(Context context) {
         WidgetData data = new WidgetData();
@@ -29,7 +36,9 @@ final class WidgetData {
             if (!file.exists())
                 return data;
             String text = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
-            JSONArray tasks = new JSONObject(text).getJSONArray("tasks");
+            JSONObject root = new JSONObject(text);
+            data.theme = root.optString("theme", "system");
+            JSONArray tasks = root.getJSONArray("tasks");
             for (int i = 0; i < tasks.length(); i++) {
                 JSONObject t = tasks.getJSONObject(i);
                 Item item = new Item();
@@ -39,6 +48,7 @@ final class WidgetData {
                 item.time = t.optString("time");
                 item.color = t.optString("color");
                 item.done = t.optBoolean("done");
+                item.pinned = t.optBoolean("pinned");
                 if (!item.done)
                     data.upcoming++;
                 data.items.add(item);

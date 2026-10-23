@@ -1,6 +1,7 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!-- The widget: logo and title, then the scrollable list of deadline cards (widget_item.xml). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
@@ -29,12 +30,13 @@
             android:orientation="vertical">
 
             <TextView
+                android:id="@+id/widget_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Deadlines"
                 android:textSize="19sp"
                 android:textStyle="bold"
-                android:textColor="#1c1c1e"
+                android:textColor="@color/widget_text"
                 android:includeFontPadding="false" />
 
             <TextView
@@ -43,7 +45,7 @@
                 android:layout_height="wrap_content"
                 android:text="Nothing due yet"
                 android:textSize="12sp"
-                android:textColor="#8e8e93" />
+                android:textColor="@color/widget_muted" />
         </LinearLayout>
     </LinearLayout>
 
@@ -67,6 +69,8 @@
             android:gravity="center"
             android:text="No deadlines yet.\nTap to add one."
             android:textSize="14sp"
-            android:textColor="#8e8e93" />
+            android:textColor="@color/widget_muted" />
     </FrameLayout>
 </LinearLayout>
+
+

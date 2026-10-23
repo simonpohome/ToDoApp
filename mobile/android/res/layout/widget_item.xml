@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!-- One deadline in the widget, like a card in the app: time-left border and dot, subject tag,
      date and title. The tinted parts are white shapes coloured from DeadlinesWidgetService.
      (The launcher draws widgets with the phone's own font; it doesn't load the app's.) -->
@@ -9,6 +9,7 @@
     android:paddingBottom="8dp">
 
     <FrameLayout
+        android:id="@+id/item_card"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@drawable/widget_card">
@@ -35,6 +36,15 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical">
+
+                <ImageView
+                    android:id="@+id/item_pin"
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
+                    android:layout_marginEnd="6dp"
+                    android:src="@drawable/widget_pin"
+                    android:visibility="gone"
+                    android:contentDescription="Pinned" />
 
                 <ImageView
                     android:id="@+id/item_dot"
@@ -70,7 +80,7 @@
                     android:singleLine="true"
                     android:ellipsize="end"
                     android:textSize="12sp"
-                    android:textColor="#8e8e93" />
+                    android:textColor="@color/widget_muted" />
             </LinearLayout>
 
             <TextView
@@ -82,7 +92,8 @@
                 android:ellipsize="end"
                 android:textSize="15sp"
                 android:textStyle="bold"
-                android:textColor="#1c1c1e" />
+                android:textColor="@color/widget_text" />
         </LinearLayout>
     </FrameLayout>
 </FrameLayout>
+

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The widget's colours while the phone is in dark mode (the same as the app's dark look). -->
+<resources>
+    <color name="widget_panel">#121821</color>
+    <color name="widget_card">#1d2430</color>
+    <color name="widget_text">#eef2f7</color>
+    <color name="widget_muted">#8b95a5</color>
+</resources>

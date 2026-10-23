@@ -8,6 +8,7 @@ import android.os.Build;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.StrikethroughSpan;
+import android.view.View;
 import android.widget.RemoteViews;
 import android.widget.RemoteViewsService;
 
@@ -27,25 +28,25 @@ public class DeadlinesWidgetService extends RemoteViewsService {
     }
 
     static final class Cards implements RemoteViewsFactory {
-        // The app's colours (Main.qml).
-        static final int TEXT = Color.parseColor("#1c1c1e");
-        static final int MUTED = Color.parseColor("#8e8e93");
-        static final int LINE = Color.parseColor("#dde6f1");
-        static final int DONE = Color.parseColor("#c7c7cc");
-        static final int GREEN = Color.parseColor("#8fd6a5");    // more than a week left
-        static final int YELLOW = Color.parseColor("#f5d77a");   // 3-7 days left
-        static final int RED = Color.parseColor("#f2a0a0");      // 2 days or less
-        static final int OVERDUE = Color.parseColor("#d9686b");
+        static final int LINE = Color.parseColor("#dde6f1");   // a subject without a colour yet
         static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("EEE d MMM", Locale.UK);
 
         private final Context context;
         private List<WidgetData.Item> items = new ArrayList<>();
+        private WidgetLook look;
 
-        Cards(Context context) { this.context = context; }
+        Cards(Context context) {
+            this.context = context;
+            this.look = new WidgetLook(context, new WidgetData());
+        }
 
         @Override public void onCreate() {}
         @Override public void onDestroy() {}
-        @Override public void onDataSetChanged() { items = WidgetData.load(context).items; }
+        @Override public void onDataSetChanged() {
+            WidgetData data = WidgetData.load(context);
+            items = data.items;
+            look = new WidgetLook(context, data);
+        }
         @Override public int getCount() { return items.size(); }
         @Override public RemoteViews getLoadingView() { return null; }
         @Override public int getViewTypeCount() { return 1; }
@@ -59,24 +60,40 @@ public class DeadlinesWidgetService extends RemoteViewsService {
                 return card;
             WidgetData.Item item = items.get(position);
 
-            long days;
+            // Everything coloured follows the time left, as in the app; finished ones go grey, and
+            // ones without a date are purple.
+            int[] mark;
             String when;
-            try {
-                LocalDate due = LocalDate.parse(item.due);
-                days = ChronoUnit.DAYS.between(LocalDate.now(), due);
-                when = due.format(DAY);
-            } catch (Exception e) {
-                days = 0;
-                when = item.due;
+            boolean overdue = false;
+            if (item.due.isEmpty()) {
+                mark = WidgetLook.PURPLE;
+                when = "No due date";
+            } else {
+                long days;
+                try {
+                    LocalDate due = LocalDate.parse(item.due);
+                    days = ChronoUnit.DAYS.between(LocalDate.now(), due);
+                    when = due.format(DAY);
+                } catch (Exception e) {
+                    days = 0;
+                    when = item.due;
+                }
+                if (!item.time.isEmpty())
+                    when += " " + item.time;
+                when += "  ·  " + relative(days);
+                mark = days > 7 ? WidgetLook.GREEN : days > 2 ? WidgetLook.YELLOW : WidgetLook.RED;
+                overdue = days < 0;
             }
-            if (!item.time.isEmpty())
-                when += " " + item.time;
-            when += "  ·  " + relative(days);
+            if (item.done)
+                mark = WidgetLook.DONE;
 
-            // Everything coloured follows the time left, as in the app; finished ones go grey.
-            int mark = item.done ? DONE : days > 7 ? GREEN : days > 2 ? YELLOW : RED;
-            card.setInt(R.id.item_border, "setColorFilter", item.done ? Color.WHITE : mark);
-            card.setInt(R.id.item_dot, "setColorFilter", mark);
+            // Every colour set every time (see WidgetLook): the launcher reuses card views.
+            look.background(card, R.id.item_card, R.drawable.widget_card,
+                            R.drawable.widget_card_light, R.drawable.widget_card_dark);
+            look.color(card, R.id.item_pin, "setColorFilter", WidgetLook.TEXT);
+            look.color(card, R.id.item_border, "setColorFilter", item.done ? WidgetLook.CARD : mark);
+            look.color(card, R.id.item_dot, "setColorFilter", mark);
+            card.setViewVisibility(R.id.item_pin, item.pinned ? View.VISIBLE : View.GONE);
             // The subject tag in the subject's colour: tint its rounded background (Android 12+),
             // or on older phones give it a plain coloured background.
             int subjectColor = parseColor(item.color, LINE);
@@ -87,9 +104,10 @@ public class DeadlinesWidgetService extends RemoteViewsService {
             card.setFloat(R.id.item_subject, "setAlpha", item.done ? 0.45f : 1f);
             card.setTextViewText(R.id.item_subject, item.subject);
             card.setTextViewText(R.id.item_when, struck(when, item.done));
-            card.setTextColor(R.id.item_when, item.done ? DONE : days < 0 ? OVERDUE : MUTED);
+            look.color(card, R.id.item_when, "setTextColor",
+                       item.done ? WidgetLook.DONE : overdue ? WidgetLook.OVERDUE : WidgetLook.MUTED);
             card.setTextViewText(R.id.item_title, struck(item.assignment, item.done));
-            card.setTextColor(R.id.item_title, item.done ? DONE : TEXT);
+            look.color(card, R.id.item_title, "setTextColor", item.done ? WidgetLook.DONE : WidgetLook.TEXT);
             card.setOnClickFillInIntent(R.id.item_root, new Intent());   // opens the app
             return card;
         }
