@@ -62,30 +62,34 @@ public class DeadlinesWidgetService extends RemoteViewsService {
 
             // Everything coloured follows the time left, as in the app; finished ones go grey, and
             // ones without a date are purple.
+            // The date is in the heading above the card, so the card itself only has the time and
+            // the days left (pinned ones, under "Pinned", keep their date).
             int[] mark;
             String when;
             boolean overdue = false;
             if (item.due.isEmpty()) {
                 mark = WidgetLook.PURPLE;
-                when = "No due date";
+                when = item.pinned ? "No due date" : "";
             } else {
-                long days;
-                try {
-                    LocalDate due = LocalDate.parse(item.due);
-                    days = ChronoUnit.DAYS.between(LocalDate.now(), due);
-                    when = due.format(DAY);
-                } catch (Exception e) {
-                    days = 0;
-                    when = item.due;
-                }
-                if (!item.time.isEmpty())
-                    when += " " + item.time;
-                when += "  ·  " + relative(days);
+                long days = daysLeft(item.due);
+                when = item.time;
+                if (item.pinned)
+                    when = (day(item.due) + " " + when).trim();
+                when = (when.isEmpty() ? "" : when + "  ·  ") + relative(days);
                 mark = days > 7 ? WidgetLook.GREEN : days > 2 ? WidgetLook.YELLOW : WidgetLook.RED;
                 overdue = days < 0;
             }
             if (item.done)
                 mark = WidgetLook.DONE;
+
+            // A heading over the first card of each day, as in the app.
+            String group = groupOf(item);
+            boolean first = position == 0 || !groupOf(items.get(position - 1)).equals(group);
+            card.setViewVisibility(R.id.item_header, first ? View.VISIBLE : View.GONE);
+            card.setTextViewText(R.id.item_header, groupTitle(group));
+            look.color(card, R.id.item_header, "setTextColor",
+                       group.equals("pinned") ? WidgetLook.TEXT
+                       : !item.due.isEmpty() && daysLeft(item.due) < 0 ? WidgetLook.OVERDUE : WidgetLook.MUTED);
 
             // Every colour set every time (see WidgetLook): the launcher reuses card views.
             look.background(card, R.id.item_card, R.drawable.widget_card,
@@ -110,6 +114,35 @@ public class DeadlinesWidgetService extends RemoteViewsService {
             look.color(card, R.id.item_title, "setTextColor", item.done ? WidgetLook.DONE : WidgetLook.TEXT);
             card.setOnClickFillInIntent(R.id.item_root, new Intent());   // opens the app
             return card;
+        }
+
+        static String groupOf(WidgetData.Item item) {
+            return item.pinned ? "pinned" : item.due.isEmpty() ? "none" : item.due;
+        }
+
+        static String groupTitle(String group) {
+            if (group.equals("pinned")) return "Pinned";
+            if (group.equals("none")) return "No due date";
+            long days = daysLeft(group);
+            String day = day(group);
+            return days == 0 ? "Today · " + day : days == 1 ? "Tomorrow · " + day
+                 : days == -1 ? "Yesterday · " + day : day;
+        }
+
+        static long daysLeft(String due) {
+            try {
+                return ChronoUnit.DAYS.between(LocalDate.now(), LocalDate.parse(due));
+            } catch (Exception e) {
+                return 0;
+            }
+        }
+
+        static String day(String due) {
+            try {
+                return LocalDate.parse(due).format(DAY);
+            } catch (Exception e) {
+                return due;
+            }
         }
 
         static String relative(long days) {

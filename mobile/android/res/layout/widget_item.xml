@@ -2,11 +2,26 @@
 <!-- One deadline in the widget, like a card in the app: time-left border and dot, subject tag,
      date and title. The tinted parts are white shapes coloured from DeadlinesWidgetService.
      (The launcher draws widgets with the phone's own font; it doesn't load the app's.) -->
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/item_root"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:orientation="vertical"
     android:paddingBottom="8dp">
+
+    <!-- The date heading, shown over the first card of each day (and over the pinned ones). -->
+    <TextView
+        android:id="@+id/item_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="6dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="6dp"
+        android:singleLine="true"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:textColor="@color/widget_muted"
+        android:visibility="gone" />
 
     <FrameLayout
         android:id="@+id/item_card"
@@ -95,5 +110,5 @@
                 android:textColor="@color/widget_text" />
         </LinearLayout>
     </FrameLayout>
-</FrameLayout>
+</LinearLayout>
 

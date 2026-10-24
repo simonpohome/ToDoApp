@@ -270,6 +270,14 @@ ApplicationWindow {
     // Where a deadline belongs by date: by due date and time (no time = end of that day), and
     // deadlines without a date after all the dated ones.
     function dateKey(t) { return t.due ? t.due + " " + (t.time || "24:00") : "9999" }
+    // The headings in the list: the pinned ones together, then one heading per due date.
+    function groupOf(t) { return t.pinned ? "pinned" : t.due || "none" }
+    function groupTitle(key) {
+        if (key === "pinned") return "Pinned"
+        if (key === "none") return "No due date"
+        const n = daysLeft(key), day = Qt.formatDate(parseDate(key), "ddd d MMM")
+        return n === 0 ? "Today · " + day : n === 1 ? "Tomorrow · " + day : n === -1 ? "Yesterday · " + day : day
+    }
     // Pinned deadlines are always the first ones in the list.
     function pinnedCount() { let n = 0; while (n < tasks.count && tasks.get(n).pinned) n++; return n }
     function addTask(subject, assignment, due, time, canvasUid) {
@@ -1193,8 +1201,22 @@ ApplicationWindow {
                         required property int index
                         required property var model
                         width: column.width
-                        height: card.implicitHeight * card.leaveScale
+                        height: head.height + card.implicitHeight * card.leaveScale
                         clip: card.leaveScale < 1
+                        // A date heading over the first card of each day (and over the pinned ones).
+                        readonly property string group: groupOf(slot.model)
+                        readonly property bool groupStart: { rev; return slot.index === 0 || groupOf(tasks.get(slot.index - 1)) !== group }
+                        Text {
+                            id: head
+                            visible: slot.groupStart
+                            height: visible ? implicitHeight : 0
+                            topPadding: slot.index > 0 ? 10 : 0
+                            bottomPadding: 8
+                            leftPadding: 6
+                            text: groupTitle(slot.group)
+                            font.pixelSize: 13; font.bold: true
+                            color: slot.group === "pinned" ? textColor : overdue(slot.group) ? overdueText : muted
+                        }
                         opacity: 0
                         scale: 0.96
                         Component.onCompleted: appear.start()
@@ -1242,7 +1264,7 @@ ApplicationWindow {
                             }
 
                             anchors.left: slot.left
-                            anchors.top: slot.top
+                            anchors.top: head.bottom
                             width: slot.width
                             implicitHeight: content.implicitHeight + 28
                             height: implicitHeight
@@ -1327,7 +1349,8 @@ ApplicationWindow {
                                             Text {
                                                 Layout.fillWidth: true
                                                 elide: Text.ElideRight
-                                                text: whenText(slot.model.due, slot.model.time)
+                                                // (the date is in the heading above, except for pinned ones)
+                                                text: slot.model.pinned ? whenText(slot.model.due, slot.model.time) : slot.model.time
                                                 font.pixelSize: 13
                                                 font.strikeout: slot.model.done
                                                 color: slot.model.done ? doneColor
@@ -1414,11 +1437,15 @@ ApplicationWindow {
                                         // An explicit Enter key on every field: left to itself, Qt shows
                                         // "Next" on Android when another field follows, and turns that key
                                         // into Tab (focus moves on, nothing is added). Return adds the step
-                                        // and keeps the keyboard up for the next one.
+                                        // and closes the input ("+ Step" opens it again).
                                         EnterKey.type: Qt.EnterKeyReturn
                                         background: Rectangle { radius: 21; color: field }
                                         onAccepted: {
-                                            if (text.trim()) { addStep(slot.index, text.trim()); text = "" }
+                                            if (text.trim()) addStep(slot.index, text.trim())
+                                            text = ""
+                                            card.addingStep = false
+                                            focus = false
+                                            Qt.inputMethod.hide()
                                         }
                                         Keys.onEscapePressed: { text = ""; card.addingStep = false }
                                         onActiveFocusChanged: if (!activeFocus && !text.trim()) card.addingStep = false
