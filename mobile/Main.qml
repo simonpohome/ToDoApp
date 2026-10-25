@@ -297,7 +297,7 @@ ApplicationWindow {
         lastDeleted = { index: i, task: toJson(tasks.get(i)) }
         snackbar.show("Deleted “" + tasks.get(i).assignment + "”", true)
         const slot = repeater.itemAt(i)
-        if (slot) slot.children[0].leave()   // animates out, then removes it from the model
+        if (slot) slot.leave()   // animates out, then removes it from the model
         else removeTask(i)
     }
     // Runs here rather than in the card: removing the card ends its own script context.
@@ -1205,7 +1205,12 @@ ApplicationWindow {
                         clip: card.leaveScale < 1
                         // A date heading over the first card of each day (and over the pinned ones).
                         readonly property string group: groupOf(slot.model)
-                        readonly property bool groupStart: { rev; return slot.index === 0 || groupOf(tasks.get(slot.index - 1)) !== group }
+                        readonly property bool groupStart: {
+                            rev
+                            const before = slot.index > 0 ? tasks.get(slot.index - 1) : null   // (none while being removed)
+                            return !before || groupOf(before) !== group
+                        }
+                        function leave() { card.leave() }
                         Text {
                             id: head
                             visible: slot.groupStart
