@@ -3,17 +3,23 @@
 Saved in (same place and format as the earlier Tk version, so its data carries over):
 %APPDATA%\\Deadlines\\deadlines.json = {"tasks": [...], "subjects": [...], "canvas": {...},
 "subject_colors": {lowercase subject: "#rrggbb"}}
+(on a Mac: ~/Library/Application Support/Deadlines/deadlines.json, same format)
 """
 
 import json
 import os
 import re
+import ssl
+import sys
 import urllib.error
 import urllib.request
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-DATA_DIR = Path(os.environ.get("APPDATA", Path.home())) / "Deadlines"
+if sys.platform == "darwin":
+    DATA_DIR = Path.home() / "Library" / "Application Support" / "Deadlines"
+else:
+    DATA_DIR = Path(os.environ.get("APPDATA", Path.home())) / "Deadlines"
 DATA_FILE = DATA_DIR / "deadlines.json"
 
 
@@ -74,10 +80,22 @@ def normalize_feed_url(text):
     return url
 
 
+def ssl_context():
+    """Python on a Mac doesn't use the system's certificates, so there (and in the packaged .app)
+    Canvas's HTTPS certificate is checked against certifi's list. Windows uses its own store."""
+    if sys.platform != "darwin":
+        return None
+    try:
+        import certifi
+    except ImportError:
+        return None
+    return ssl.create_default_context(cafile=certifi.where())
+
+
 def fetch_feed(url):
     request = urllib.request.Request(url, headers={"User-Agent": "Deadlines app"})
     try:
-        with urllib.request.urlopen(request, timeout=FEED_TIMEOUT) as response:
+        with urllib.request.urlopen(request, timeout=FEED_TIMEOUT, context=ssl_context()) as response:
             text = response.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as err:
         raise FeedError(f"Canvas didn't accept this link (error {err.code}). "

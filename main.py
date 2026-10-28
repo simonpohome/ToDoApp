@@ -20,19 +20,20 @@ try:
 except ImportError:
     # Started with a Python that doesn't have PySide6 (e.g. VS Code's selected interpreter):
     # run again with this folder's own environment, where it's installed.
-    venv_python = HERE / ".venv" / "Scripts" / "python.exe"
+    venv_python = (HERE / ".venv" / "Scripts" / "python.exe" if sys.platform == "win32"
+                   else HERE / ".venv" / "bin" / "python")
     if venv_python.exists() and Path(sys.executable).resolve() != venv_python.resolve():
         sys.exit(subprocess.call([str(venv_python), str(Path(__file__).resolve()), *sys.argv[1:]]))
     sys.exit(f"PySide6 isn't installed. Run:  {venv_python} -m pip install pyside6")
 
-from PySide6.QtCore import QObject, QUrl, Signal, Slot
+from PySide6.QtCore import QObject, Qt, QUrl, Signal, Slot
 from PySide6.QtGui import QFontDatabase, QGuiApplication, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
 
 import core
 
 if getattr(sys, "frozen", False):
-    # Running as the .exe: Main.qml, fonts/ and icon.ico are unpacked here (PyInstaller's _MEIPASS).
+    # Running as the .exe (or the Mac .app): Main.qml, fonts/ and icon.ico are here (PyInstaller's _MEIPASS).
     HERE = Path(sys._MEIPASS)
 BG, TEXT = "#e3eefb", "#1c1c1e"
 WHEEL_SCROLL_LINES = 4  # Qt's default is 3; a bit faster per wheel notch / touchpad swipe
@@ -77,8 +78,8 @@ class Backend(QObject):
 
 
 def load_font():
-    """The bundled rounded font (Nunito, see fonts/OFL.txt); falls back to Segoe UI."""
-    family = "Segoe UI"
+    """The bundled rounded font (Nunito, see fonts/OFL.txt); falls back to the system's font."""
+    family = "Segoe UI" if sys.platform == "win32" else ".AppleSystemUIFont"
     for name in ("NunitoRounded-Regular.ttf", "NunitoRounded-Bold.ttf"):
         font_id = QFontDatabase.addApplicationFont(str(HERE / "fonts" / name))
         if font_id >= 0:
@@ -111,7 +112,12 @@ def main():
         # Own taskbar entry with our icon (same ID as before, so pinned icons keep working).
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Deadlines.App")
     app = QGuiApplication(sys.argv)
-    app.setWindowIcon(QIcon(str(HERE / "icon.ico")))
+    if sys.platform == "darwin":
+        # The app is light only (as on Windows): keep the Mac's title bar and menus light too, even
+        # when the Mac is set to dark. (The Dock icon comes from the .app's own icon.)
+        app.styleHints().setColorScheme(Qt.ColorScheme.Light)
+    else:
+        app.setWindowIcon(QIcon(str(HERE / "icon.ico")))
     app.styleHints().setWheelScrollLines(WHEEL_SCROLL_LINES)
 
     backend = Backend()

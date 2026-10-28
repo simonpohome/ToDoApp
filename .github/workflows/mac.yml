@@ -1,0 +1,23 @@
+# Builds the Mac version (Deadlines.dmg) on GitHub's Macs, so no Mac is needed to make it.
+# Run it from the repository's Actions tab ("Mac app" > "Run workflow"); the .dmg is then under
+# the run's "Artifacts". It also runs by itself when a version tag (v1.1, ...) is pushed.
+name: Mac app
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: macos-latest   # Apple silicon (M1 and newer)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: bash build_mac.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Deadlines-mac
+          path: dist/Deadlines.dmg

@@ -13,6 +13,10 @@ ApplicationWindow {
     visible: true
     title: "Deadlines"
     color: bg
+    // On a Mac the title bar is see-through over the light blue page (as main.py tints it on
+    // Windows); the page itself still starts below it, where the window's safe area begins.
+    flags: Qt.platform.os === "osx" || Qt.platform.os === "macos"
+           ? (Qt.Window | Qt.ExpandedClientAreaHint | Qt.NoTitleBarBackgroundHint) : Qt.Window
     font.family: appFont
     font.pixelSize: 13
 

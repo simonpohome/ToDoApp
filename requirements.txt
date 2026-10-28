@@ -1,2 +1,5 @@
 pyside6==6.12.0
 pyinstaller==6.22.3
+# Mac only: HTTPS certificates for the Canvas sync, and Pillow to turn icon.ico into the app's icon.
+certifi==2025.8.3; sys_platform == "darwin"
+pillow==11.3.0; sys_platform == "darwin"
